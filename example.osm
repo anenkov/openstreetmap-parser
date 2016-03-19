@@ -21,6 +21,31 @@
  <node id="261221424" visible="true" version="7" changeset="8581395" timestamp="2011-06-29T14:14:15Z" user="bbmiller" uid="451048" lat="41.9758794" lon="-87.6923639">
   <tag k="highway" v="traffic_signals"/>
  </node>
+  <node id="2406124091" visible="true" version="2" changeset="17206049" timestamp="2013-08-03T16:43:42Z" user="linuxUser16" uid="1219059" lat="41.9757030" lon="-87.6921867">
+  <tag k="addr:city" v="Chicago"/>
+  <tag k="addr:housenumber" v="5157"/>
+  <tag k="addr:postcode" v="60625"/>
+  <tag k="addr:street" v="North Lincoln Ave"/>
+  <tag k="amenity" v="restaurant"/>
+  <tag k="cuisine" v="mexican"/>
+  <tag k="name" v="La Cabana De Don Luis"/>
+  <tag k="outdoor_seating" v="no"/>
+  <tag k="phone" v="1 (773)-271-5176"/>
+  <tag k="smoking" v="no"/>
+  <tag k="takeaway" v="yes"/>
+ </node>
+  <node id="2636084635" visible="true" version="1" changeset="20187349" timestamp="2014-01-25T01:56:10Z" user="linuxUser16" uid="1219059" lat="41.9705219" lon="-87.6900344">
+  <tag k="addr:city" v="Chicago"/>
+  <tag k="addr:country" v="US"/>
+  <tag k="addr:housenumber" v="4874"/>
+  <tag k="addr:postcode" v="60625"/>
+  <tag k="addr:state" v="Illinois"/>
+  <tag k="addr:street" v="N. Lincoln Ave"/>
+  <tag k="name" v="Matty Ks"/>
+  <tag k="phone" v="(773)-654-1347"/>
+  <tag k="shop" v="doityourself"/>
+  <tag k="source" v="GPS"/>
+ </node>
  <node id="261198953" visible="true" version="6" changeset="8581395" timestamp="2011-06-29T14:14:13Z" user="bbmiller" uid="451048" lat="41.9707413" lon="-87.6963097"/>
  <node id="757860928" visible="true" version="2" changeset="5288876" timestamp="2010-07-22T16:16:51Z" user="uboot" uid="26299" lat="41.9747374" lon="-87.6920102">
   <tag k="amenity" v="fast_food"/>
@@ -33,6 +58,31 @@
   <nd ref="2636086177"/>
   <nd ref="2636086176"/>
   <tag k="highway" v="service"/>
+ </way>
+ <node id="1683602133" version="2" timestamp="2012-03-20T18:56:44Z" uid="634589" user="Jacobs Studios" changeset="11043902" lat="42.1251718" lon="-88.0780576">
+    <tag k="addr:housename" v="Village Hall"/>
+    <tag k="addr:housenumber" v="1400"/>
+    <tag k="addr:postcode" v="60067"/>
+    <tag k="addr:street" v="Baldwin Rd."/>
+    <tag k="amenity" v="townhall"/>
+    <tag k="name" v="Village Hall"/>
+ </node>
+ <way id="209809850" visible="true" version="1" changeset="15353317" timestamp="2013-03-13T15:58:04Z" user="chicago-buildings" uid="674454">
+  <nd ref="2199822281"/>
+  <nd ref="2199822390"/>
+  <nd ref="2199822392"/>
+  <nd ref="2199822369"/>
+  <nd ref="2199822370"/>
+  <nd ref="2199822284"/>
+  <nd ref="2199822281"/>
+  <tag k="addr:housenumber" v="1412"/>
+  <tag k="addr:street" v="West Lexington St."/>
+  <tag k="addr:street:name" v="Lexington"/>
+  <tag k="addr:street:prefix" v="West"/>
+  <tag k="addr:street:type" v="Street"/>
+  <tag k="building" v="yes"/>
+  <tag k="building:levels" v="1"/>
+  <tag k="chicago:building_id" v="366409"/>
  </way>
  <relation id="1557627" visible="true" version="2" changeset="14326854" timestamp="2012-12-19T05:32:37Z" user="fredr" uid="939355">
   <member type="node" ref="1258927212" role="via"/>
