@@ -13,6 +13,7 @@ import xml.etree.cElementTree as ElementTree
 
 import pprint
 import sys
+import dateutil.parser
 
 
 class SkipItem(Exception):
@@ -195,7 +196,7 @@ def parse_element(element):
     item = {
         "id": element.attrib.get("id"),
         "user": parse_user(element),
-        "timestamp": parse_common_field(element, "timestamp"),
+        "timestamp": dateutil.parser.parse(parse_common_field(element, "timestamp")),
         "changeset": parse_common_field(element, "changeset"),
         "version": parse_common_field(element, "version"),
         "type": element.tag
@@ -209,8 +210,10 @@ def parse_element(element):
 
     for sub_tag in element:
         if sub_tag.tag == "tag":
+            if sub_tag.attrib["k"] == "amenity":
+                item["amenity"] = sub_tag.attrib["v"].strip()
             # Collect addresses
-            if sub_tag.attrib["k"].startswith("addr:"):
+            elif sub_tag.attrib["k"].startswith("addr:"):
                 split = sub_tag.attrib["k"].split(":")
                 if len(split) == 2:
                     if split[1] == "postcode":
@@ -324,6 +327,21 @@ def correct_street_name(str_name):
         return street_prefix_regex.sub(lambda m: m.group(1).lower() + ". ", str_name)
 
 
+def add_record(db, record):
+    # Changes to this function will be reflected in the output.
+    # All other functions are for local use only.
+    # Try changing the name of the city to be inserted
+    db.osm_data.insert(record)
+
+
+def get_db():
+    # For local use
+    from pymongo import MongoClient
+    client = MongoClient('localhost:27017')
+    # 'examples' here is the database name. It will be created if it does not exist.
+    db = client.project3
+    return db
+
 if __name__ == "__main__":
     processed_data = parse_file(sys.argv[1])
 
@@ -353,6 +371,7 @@ if __name__ == "__main__":
     #         print street_name
     # MyPrettyPrinter().pprint(dict(street_names))
     unfinished_streets = defaultdict(int)
+    db = get_db()
     for entry in processed_data:
         if "address" in entry:
             if "street" in entry["address"]:
@@ -370,12 +389,16 @@ if __name__ == "__main__":
                     else:
                         entry["address"]["street"] = unicode("ул. ", "utf-8") + street_name
 
+        add_record(db, entry)
+
     # MyPrettyPrinter().pprint(dict(unfinished_streets))
     # MyPrettyPrinter().pprint(saved_str)
     # MyPrettyPrinter().pprint(saved_str)
     # MyPrettyPrinter().pprint(saved_pl)
     # print lowered_street_names
 
-    import json
-    with open('data.json', 'w') as outfile:
-        json.dump(processed_data, outfile)
+
+
+    # import json
+    # with open('data.json', 'w') as outfile:
+    #     json.dump(processed_data, outfile)
