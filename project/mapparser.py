@@ -6,10 +6,10 @@ A parser for OpenStreetMap XML data file. The first argument of the script is th
 import re
 from collections import defaultdict
 
-# try:
-import xml.etree.cElementTree as ElementTree
-# except ImportError:
-#     import xml.etree.ElementTree as ElementTree
+try:
+    import xml.etree.cElementTree as ElementTree
+except ImportError:
+    import xml.etree.ElementTree as ElementTree
 
 import pprint
 import sys
@@ -17,10 +17,16 @@ import dateutil.parser
 
 
 class SkipItem(Exception):
+    """
+    A custom Exception to raise when a mandatory data is missing or the entry is identified as not needed
+    """
     pass
 
 
 class MyPrettyPrinter(pprint.PrettyPrinter):
+    """
+    PrettyPrinter implementation for handling the utf-8 characters
+    """
     def format(self, object, context, maxlevels, level):
         if isinstance(object, unicode):
             return (object.encode('utf8'), True, False)
@@ -36,11 +42,13 @@ POSITIONED_ITEMS = ["node"]
 # Tags for which we collect node references
 REFERENCE_ITEMS = ["way"]
 
+# Used to store the missing user values (if there are any)
 missing_user_data = {
     "username": 0,
     "uid": 0
 }
 
+# Used to store missing location data if any
 missing_location_data = {
     "lat": 0,
     "lon": 0,
@@ -48,14 +56,15 @@ missing_location_data = {
     "way": 0
 }
 
+# Used to store missing common fields if any
 missing_common_fields = {
     "version": 0,
     "timestamp": 0,
     "changeset": 0
 }
 
+# Initialization of some variables used later in the parser
 element_fields = []
-
 colon_tag_keys = defaultdict(int)
 problem_tag_keys = defaultdict(int)
 unmatched_tag_keys = defaultdict(int)
@@ -63,25 +72,35 @@ wrong_postcodes = defaultdict(int)
 saved_bul = {}
 saved_str = {}
 saved_pl = {}
-
 fixme_codes = 0
+address_types = defaultdict(int)
+street_names = defaultdict(int)
+lowered_street_names = defaultdict(int)
 
 # Regular expressions for scanning the <tag> elements for correct keys
 lower = re.compile(r'^([a-z]|_)*$')
 lower_colon = re.compile(r'^([a-z]|_)*:([a-z]|_)*$')
 problemchars = re.compile(r'[=\+/&<>;\'"\?%#$@,\. \t\r\n]')
 
+# Expected street prefixes
 street_prefixes = [
     unicode("бул", "utf-8"),
     unicode("ул", "utf-8"),
     unicode("пл", "utf-8"),
 ]
 
+# Regex used to scan the steet:addr tags for prefixes inconsistencies
 street_prefix_regex = re.compile('(' + "|".join(street_prefixes) + ')(\s\.|\.\s|\.|\s)(?=\S)',
                                  re.UNICODE | re.IGNORECASE)
 
 
 def parse_user(element):
+    """
+    Parse a node or way element for extracting user data
+
+    :param element: an ET.element
+    :return: a dictionary with user data
+    """
     user_name = element.attrib.get("user")
     user_id = element.attrib.get("uid")
 
@@ -95,15 +114,23 @@ def parse_user(element):
 
 
 def parse_location(element):
+    """
+    Parse a node or way element for extracting location data
+
+    :param element: an ET.element
+    :return: a size 2 list with lat and lon and empty list if one is missing
+    """
     lat = element.attrib.get("lat")
     lon = element.attrib.get("lon")
 
     if lat is None:
+        # Save missing data for further investigation
         missing_location_data["lat"] += 1
         missing_location_data[element.tag] += 1
         return []
 
     if lon is None:
+        # Save missing data for further investigation
         missing_location_data["lon"] += 1
         return []
 
@@ -111,6 +138,13 @@ def parse_location(element):
 
 
 def parse_file(filename):
+    """
+    This is the entry point of the parsing mechanism
+    It is actually first pass of parsing as there are some parsings later which improve based on the first pass values
+
+    :param filename: file path
+    :return: The parsed data with all the entries
+    """
     data = []
     skipped_items = 0
     for _, elem in ElementTree.iterparse(filename, events=('start',)):
@@ -119,14 +153,22 @@ def parse_file(filename):
             try:
                 data.append(parse_element(elem))
             except SkipItem:
+                # Log skipped
                 skipped_items += 1
-        elem.clear()  # discard the element
+        # discard the element for freeing up memory
+        elem.clear()
 
     print "Skipped items: {}".format(skipped_items)
     return data
 
 
 def parse_common_field(element, field):
+    """
+    A parsing function for any tag attribute that does not require any special treatment
+    :param element: ET.element
+    :param field: string with field name
+    :return: string value
+    """
     value = element.attrib.get(field)
     if value is None:
         missing_common_fields[value] += 1
@@ -135,6 +177,11 @@ def parse_common_field(element, field):
 
 
 def parse_node_refs(element):
+    """
+    Special function for parsing <node> tags to save their child <nd> elements in an array
+    :param element: ET.element
+    :return: and array of node ids
+    """
     node_refs = []
     for sub_tag in element:
         if sub_tag.tag == "nd":
@@ -144,6 +191,11 @@ def parse_node_refs(element):
 
 
 def scan_tags(element):
+    """
+    parsing function for <tag> elements to check whether they have missing k or v attributes
+    :param element:
+    :return: void
+    """
     for sub_tag in element:
         if sub_tag.tag == "tag":
             tag_key = sub_tag.attrib["k"]
@@ -158,6 +210,12 @@ def scan_tags(element):
 
 
 def parse_postcode(code):
+    """
+    A special function for parsing post codes based on the knowledge of regional restrictions
+    Items were skipped after they were first investigated and we're sure they do not belong to the dataset
+    :param code:
+    :return: int post code
+    """
     global fixme_codes
     try:
         numeric = int(code)
@@ -175,6 +233,13 @@ def parse_postcode(code):
 
 
 def add_address_value(item, field, value):
+    """
+    A reusable function for adding different address fields like addr:street and addr:name
+    :param item: the record which should hold the result
+    :param field: field we're interested in
+    :param value: the value
+    :return: void
+    """
     if value is None:
         return
     if "address" not in item:
@@ -182,13 +247,14 @@ def add_address_value(item, field, value):
     item["address"][field] = value
 
 
-address_types = defaultdict(int)
-street_names = defaultdict(int)
-
-lowered_street_names = defaultdict(int)
-
-
 def parse_element(element):
+    """
+    This is the heart of the parsing mechanism
+    The input is an ET.element whose tags are iterated and parsed one by one in case we're interested in them
+
+    :param element: ET.element
+    :return: a dictionary representing the parsed entry
+    """
     for attrib in element.attrib:
         if attrib not in element_fields:
             element_fields.append(attrib)
@@ -223,6 +289,7 @@ def parse_element(element):
                         street_names[correct_name] += 1
                         lowered_street_names[correct_name.lower()] += 1
                         add_address_value(item, "street", correct_name)
+                        # Save the correct names for usage later on the 2nd pass
                         if correct_name.startswith(unicode("бул. ", "utf-8")):
                             saved_bul[correct_name.replace(unicode("бул. ", "utf-8"), "").lower()] = correct_name
                         elif correct_name.startswith(unicode("ул. ", "utf-8")):
@@ -242,10 +309,22 @@ def parse_element(element):
 
 
 def sort_dict(d):
+    """
+    Helper function for sorting dictionaries
+
+    :param d:
+    :return:
+    """
     return sorted(d.items(), key=lambda x: x[1], reverse=True)
 
 
 def skip_street(orig_street_name):
+    """
+    A function used to decided whether we should skip adding the street value because it is incorrect
+    :param orig_street_name:
+    :return:
+    """
+    # Manual selection of found issues
     manually_skipped_streets = [
         "no",
         "apartments",
@@ -255,7 +334,7 @@ def skip_street(orig_street_name):
     return orig_street_name.startswith("http") or orig_street_name.startswith(
         unicode("жк.", "utf-8")) or orig_street_name in manually_skipped_streets
 
-
+# Street name which had more than 1 variance of capitalization. This is a selected correct way of writing them
 manually_corrected_names = [
     "ул. Ген. Йосиф В. Гурко",
     "бул. Ген. Тотлебен",
@@ -275,10 +354,11 @@ manually_corrected_names = [
 
 manual_street_names_ref = {}
 
-
+# Convert the above list in dictionary of type [{"lower name": "Cap Name"}] in order to correct capitalizations
 for name in manually_corrected_names:
     manual_street_names_ref[unicode(name, "utf-8").lower()] = unicode(name, "utf-8")
 
+# Manual translations
 manually_translated_streets = {
     'Andrey Saharov Blvd': "Андрей Сахаров",
     'Atanas Kirchev': "Атанас Кирчев",
@@ -302,6 +382,13 @@ manually_translated_streets = {
 
 
 def correct_street_name(str_name):
+    """
+    A function for parsing and correcting street names
+    :param str_name:
+    :return:
+    """
+
+    # Unnecessary quotes
     bad_chars = [
         unicode("'", "utf-8"),
         unicode('"', "utf-8"),
@@ -312,13 +399,15 @@ def correct_street_name(str_name):
     # Clean leading/trailing whitespaces and quotes
     str_name = re.sub('[\'"' + "".join(bad_chars) + ']', '', str_name.strip())
 
+    # Convert full words "boulevard", "street", "square" to their shortened version
     if str_name.startswith(unicode("улица", "utf-8")):
         str_name = str_name.replace(unicode("улица", "utf-8"), unicode("ул.", "utf-8"))
-    if str_name.startswith(unicode("булевард", "utf-8")):
+    elif str_name.startswith(unicode("булевард", "utf-8")):
         str_name = str_name.replace(unicode("булевард", "utf-8"), unicode("бул.", "utf-8"))
-    if str_name.startswith(unicode("площад", "utf-8")):
+    elif str_name.startswith(unicode("площад", "utf-8")):
         str_name = str_name.replace(unicode("площад", "utf-8"), unicode("пл.", "utf-8"))
 
+    # Apply manual corrections
     if str_name.lower() in manual_street_names_ref:
         return manual_street_names_ref[str_name.lower()]
     elif str_name in manually_translated_streets:
@@ -328,21 +417,26 @@ def correct_street_name(str_name):
 
 
 def add_record(db, record):
-    # Changes to this function will be reflected in the output.
-    # All other functions are for local use only.
-    # Try changing the name of the city to be inserted
+    """
+    Adds reocord in the MongoDB
+    :param db:
+    :param record:
+    :return:
+    """
     db.osm_data.insert(record)
 
 
 def get_db():
-    # For local use
+    """
+    Get the mongo database which will be used for storing the result
+    :return:
+    """
     from pymongo import MongoClient
     client = MongoClient('localhost:27017')
-    # 'examples' here is the database name. It will be created if it does not exist.
-    db = client.project3
-    return db
+    return client.project3
 
 if __name__ == "__main__":
+    # Parsed file passed from the terminal as parameter
     processed_data = parse_file(sys.argv[1])
 
     # print "Missing user data:"
@@ -370,9 +464,18 @@ if __name__ == "__main__":
     #     if street_names[street_name] != lowered_street_names[street_name.lower()]:
     #         print street_name
     # MyPrettyPrinter().pprint(dict(street_names))
+
+    # Used while auditing data to check the remaining issues
     unfinished_streets = defaultdict(int)
     db = get_db()
+
     for entry in processed_data:
+        """
+        Here we make a second pass for the addresses based on what we've "learned" until this point.
+        At this point only streets missing prefixes are left and their lower() version is matched against
+        those with correct prefixes. This way we can programmatically identify prefixes.
+        For all that is left aplly the "Str. " prefix
+        """
         if "address" in entry:
             if "street" in entry["address"]:
                 street_name = entry["address"]["street"]
@@ -397,8 +500,6 @@ if __name__ == "__main__":
     # MyPrettyPrinter().pprint(saved_pl)
     # print lowered_street_names
 
-
-
-    # import json
+    # export to json
     # with open('data.json', 'w') as outfile:
     #     json.dump(processed_data, outfile)

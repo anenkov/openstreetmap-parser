@@ -1,6 +1,11 @@
 # coding=utf-8
 import re
 
+
+"""
+A test area for regex matching of street prefixes
+"""
+
 search = [
     unicode("бул", "utf-8"),
     unicode("ул", "utf-8"),
